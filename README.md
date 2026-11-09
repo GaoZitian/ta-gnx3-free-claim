@@ -55,7 +55,12 @@
 
 ## 🔀 三、领取顺序（降级规则）
 
-`config.yaml` 里的 `priority` 决定**每天先领哪个平台**；领取失败自动**降级到下一个已配置平台**（按 `platforms` 定义顺序），第一个成功的就停。
+`priority`（优先入口）决定**每天先领哪个平台**；领取失败自动**降级到下一个已配置平台**（按 `platforms` 定义顺序），第一个成功的就停。
+
+**`priority` 来源（优先级从高到低）**：
+1. 环境变量 `TA_PRIORITY` ← **GitHub Actions 用 Repository variable 改，无需提交代码**
+2. `config.yaml` 的 `priority`
+3. 都不填则默认取第一个平台（`douyin`）
 
 - **每平台只配置一个 `tid`**（当前领取项），平台内没有「下一个商品」可降级——失败直接换平台。
 - 降级链示例（`priority: douyin`，三个平台都配了）：
@@ -131,7 +136,9 @@ priority: douyin                 # 每天先领这个平台；不填默认取第
 ```
 
 **改领什么**：只改对应平台的 `tid`（从上面的清单表格复制）。
-**改优先平台**：改 `priority`（`douyin` / `kuaishou` / `qq`）。
+**改优先平台**：改 `priority`（`douyin` / `kuaishou` / `qq`），或**在 GitHub Actions 里设 `TA_PRIORITY` 变量**（免提交）。
+
+> 💡 **推荐**：优先平台用 `TA_PRIORITY` 环境变量控制（GitHub repo variable），比提交改 `config.yaml` 更灵活——想换平台时只需改 variable，不用重新推送。
 
 启动时脚本会校验：`tid` 必须在该平台 `items` 列表内，且在内置支持清单里，否则报错并列出合法值。**若选了标记 `status: 暂不实现` 的商品，脚本会直接提示该商品暂不实现。**
 
@@ -143,6 +150,7 @@ priority: douyin                 # 每天先领这个平台；不填默认取第
 | --- | --- | --- |
 | `TA_USER` | ✅ | 站点登录账号 |
 | `TA_PASS` | ✅ | 站点登录密码 |
+| `TA_PRIORITY` | 否 | 优先平台（`douyin` / `kuaishou` / `qq`），覆盖 config.yaml 的 `priority`；不填则用 config 或默认第一个平台 |
 | `TA_DOUYIN_INPUT` | 抖音商品 | 抖音作品链接（如 `https://www.douyin.com/video/xxx`） |
 | `TA_KUAISHOU_INPUT` | 快手商品 | 快手作品链接 |
 | `TA_QQ_INPUT` | QQ 商品 | QQ 号码 |

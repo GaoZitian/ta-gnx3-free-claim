@@ -38,5 +38,9 @@ platforms:
       - {tid: 5379, name: 空间访客1百-10万随机}
       - {tid: 5186, name: 说说浏览量1百-100万随机, status: 暂不实现}
 
-# 每天先领这个平台；领取失败自动降级到下一个已配置平台
+# 每天先领这个平台；领取失败自动降级到下一个已配置平台。
+# priority 来源（优先级从高到低）：
+#   1. 环境变量 TA_PRIORITY   ← GitHub Actions 用 repo variable 改，无需提交代码
+#   2. 本行 priority         ← 本地默认用
+#   3. 不填则取第一个平台（douyin）
 priority: douyin

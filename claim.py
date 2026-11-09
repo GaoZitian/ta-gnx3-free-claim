@@ -467,7 +467,10 @@ def load_config():
             sys.exit(1)
 
     order = list(platforms.keys())
-    prio = cfg.get('priority') or order[0]
+    # priority 来源：环境变量 TA_PRIORITY > config.yaml > 缺省第一个平台
+    # （GitHub Actions 用 Repository variable 覆盖，改平台无需提交代码）
+    prio = (os.environ.get('TA_PRIORITY', '').strip().lower()
+            or cfg.get('priority') or order[0])
     if prio not in platforms:
         log(f'✗ priority={prio} 不在 platforms 中: {order}')
         sys.exit(1)
