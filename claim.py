@@ -564,7 +564,7 @@ def try_claim(sess, platform, tid, dry_run=False):
         return 'fail', f'{g["name"]} 暂不实现'
     inputvalue = os.environ.get(ENV_INPUT[platform], '').strip()
     if not inputvalue:
-        return 'fail', f'缺少环境变量 {ENV_INPUT[platform]}（{INPUT_TYPE_LABEL[g["input_type"]]}）'
+        return 'skip', f'未配置 {ENV_INPUT[platform]}'
     num = g['amount'] if g['amount'] > 0 else 1
 
     for attempt in (1, 2):  # 验证类失败自动重试一次
@@ -635,6 +635,7 @@ def main():
     lines.append(f'📝 签到: {"✅ " + sign_state if sign_ok else "⚠️ " + sign_state}')
 
     # ---- 领取（按尝试链降级）----
+    # 若当前平台未配置输入（skip），跳过领取环节（只签到，不报错）
     claim_result = None
     claim_lines = []
     for platform in chain:
@@ -642,6 +643,9 @@ def main():
         g = find_goods(platform, tid)
         log(f'尝试领取: {platform} / {g["name"]} (tid={tid})')
         status, msg = try_claim(sess, platform, tid, dry_run=dry_run)
+        if status == 'skip':
+            log(f'  跳过领取：{msg}（只签到，不领取）')
+            break
         if status in ('success', 'already', 'dryrun'):
             claim_result = (platform, tid, g['name'], status, msg)
             mark = {'success': '✅ 领取成功', 'already': '⏭️ 今日已领取过（服务端互斥）',
@@ -653,7 +657,15 @@ def main():
 
     lines.extend(claim_lines)
     if not claim_result:
-        lines.append('🎁 领取: ❌ 所有平台均失败（明天可重试）')
+        # 区分：全部 skip（没配输入，只签到）vs 领取失败
+        all_skip = all(
+            not os.environ.get(ENV_INPUT[p], '').strip()
+            for p in chain
+        )
+        if all_skip:
+            lines.append('🎁 领取: ⏭️ 未配置平台输入，跳过（只签到）')
+        else:
+            lines.append('🎁 领取: ❌ 所有平台均失败（明天可重试）')
 
     # ---- 余额 ----
     p = profile(sess)
