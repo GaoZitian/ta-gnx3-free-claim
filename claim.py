@@ -257,11 +257,25 @@ def pw_login(user, pwd):
 
                 if resp_info is not None:
                     try:
-                        # 直接 json()（内部会等 body 完整下载），避免 finished() 在页面关闭时抛 Target closed
-                        login_result.update(resp_info.value.json())
+                        # json() 在 CI 上偶发 body 资源竞态（Network.getResponseBody: No resource），
+                        # 加短延迟重试读取，body 可能稍后可用
+                        for _try in range(3):
+                            try:
+                                login_result.update(resp_info.value.json())
+                                break
+                            except Exception as _e:
+                                log(f'    [WARN] 读取 login 响应第{_try+1}次失败: {_e}')
+                                time.sleep(0.3)
                     except Exception as e:
                         log(f'    [WARN] 读取 login 响应失败: {e}')
                 time.sleep(2.5)
+
+                # 兜底：json() 读不到但页面已跳转（登录成功会 location.assign('./') 离开 login.php）
+                if not login_result:
+                    cur_url = page.url
+                    if 'login.php' not in cur_url:
+                        log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] 页面已跳转（{cur_url}），视为登录成功')
+                        login_result = {'code': 0, 'msg': '页面跳转确认登录成功'}
 
                 if login_result.get('code') == 0:
                     login_ok = True
