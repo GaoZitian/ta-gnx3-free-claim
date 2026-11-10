@@ -216,19 +216,9 @@ def pw_login(user, pwd):
 
                 def on_response(resp):
                     url = resp.url
-                    # 诊断：记录所有 ajax.php 和 ds_slide 响应（URL + 状态码 + body）
+                    # 诊断：记录所有 ajax.php 和 ds_slide 响应（不读 body，避免 CI 竞态）
                     if 'ajax.php' in url or 'ds_slide/api.php' in url:
-                        try:
-                            body = resp.text()
-                        except Exception:
-                            body = '<无法读取 body>'
                         log(f'    [RESP] {url} status={resp.status}')
-                        log(f'           body={body[:200]!r}')
-                    if 'ajax.php?act=login' in url:
-                        try:
-                            login_result.update(resp.json())
-                        except Exception:
-                            log(f'    [WARN] login 响应非 JSON: {body[:200]!r}')
                 page.on('response', on_response)
 
                 page.click('input[type=submit]')
@@ -252,8 +242,26 @@ def pw_login(user, pwd):
                     continue
 
                 track = page.locator('.ds-slide-track')
-                _drag_human(page, handle, track, x)
-                time.sleep(3.5)
+                # 拖动前启动 login 响应等待（expect_response 拿到 response 后 finished() 等 body 下载完再读，
+                # 避免 on_response 回调里同步 text()/json() 在 GitHub Actions 上 body 读取竞态失败）
+                resp_info = None
+                try:
+                    with page.expect_response(
+                            lambda r: 'ajax.php?act=login' in r.url,
+                            timeout=15000) as ri:
+                        _drag_human(page, handle, track, x)
+                        resp_info = ri
+                except Exception:
+                    log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] 等待 login 响应超时/失败')
+                    resp_info = None
+
+                if resp_info is not None:
+                    try:
+                        # 直接 json()（内部会等 body 完整下载），避免 finished() 在页面关闭时抛 Target closed
+                        login_result.update(resp_info.value.json())
+                    except Exception as e:
+                        log(f'    [WARN] 读取 login 响应失败: {e}')
+                time.sleep(2.5)
 
                 if login_result.get('code') == 0:
                     login_ok = True
