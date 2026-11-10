@@ -175,6 +175,8 @@ def pw_login(user, pwd):
     """用 Playwright 真实浏览器登录。
 
     成功返回 (cookie_dict, login_response, False)；失败返回 (None, None, False)。
+    - 每次尝试都用全新浏览器 + 全新 context（全新会话），避免同会话二次
+      GET login.php 产生 mysid 污染导致登录页消失（GitHub Actions 数据中心 IP 实测触发）
     - Playwright 打开 PC 登录页 → 填账号密码 → 点登录触发滑块
     - NCC 定位缺口 → 拟人拖动 → 滑块通过 → 浏览器自动提交 ajax.php?act=login
     - 登录成功后导出全部浏览器 cookie（供 requests session 继续签到/领取）
@@ -184,77 +186,97 @@ def pw_login(user, pwd):
         return None, None, False
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        ctx = browser.new_context(
-            user_agent=PW_UA,
-            viewport={'width': 1280, 'height': 900})
-        page = ctx.new_page()
-        page.goto(BASE + '/user/login.php', wait_until='domcontentloaded', timeout=30000)
-        time.sleep(2)
-        page.fill('input[name=user]', user)
-        page.fill('input[name=pass]', pwd)
-
         login_result = {}
         login_ok = False
-
-        def on_response(resp):
-            if 'ajax.php?act=login' in resp.url:
-                try:
-                    login_result.update(resp.json())
-                except Exception:
-                    pass
-        page.on('response', on_response)
+        last_cookies = None
 
         for attempt in range(1, MAX_SLIDE_RETRY + 1):
-            # 每次尝试都刷新页面重置表单状态（滑块失败后 submit 会被禁用）
-            if attempt > 1:
+            # 每次尝试：全新浏览器 + 全新 context（全新会话，无 mysid 残留）
+            browser = p.chromium.launch(headless=True)
+            ctx = browser.new_context(
+                user_agent=PW_UA,
+                viewport={'width': 1280, 'height': 900})
+            page = ctx.new_page()
+
+            try:
                 page.goto(BASE + '/user/login.php', wait_until='domcontentloaded', timeout=30000)
-                time.sleep(1.5)
+                time.sleep(2)
+
+                # C：防御检查——input 不存在则本次尝试作废，重启浏览器重试
+                if page.locator('input[name=user]').count() == 0:
+                    log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] 登录页无输入框，重启浏览器重试')
+                    browser.close()
+                    time.sleep(1.5)
+                    continue
+
                 page.fill('input[name=user]', user)
                 page.fill('input[name=pass]', pwd)
-            page.click('input[type=submit]')
-            time.sleep(2.5)
-            handle = page.locator('.ds-slide-handle')
-            if handle.count() == 0:
-                log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] 滑块未弹出')
-                time.sleep(1.5)
-                continue
-            bg_src = page.evaluate("() => document.querySelector('.ds-slide-background')?.src")
-            pc_src = page.evaluate("() => document.querySelector('.ds-slide-piece')?.src")
-            top_pct = page.evaluate("() => parseFloat(document.querySelector('.ds-slide-piece').style.top)")
-            y_px = int(float(top_pct) / 100 * 160)
-            x = _ncc_x(bg_src, pc_src, y_px)
-            if x < 0:
-                log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] NCC 定位失败')
-                time.sleep(1.5)
-                continue
-            track = page.locator('.ds-slide-track')
-            _drag_human(page, handle, track, x)
-            time.sleep(3.5)
-            if login_result.get('code') == 0:
-                login_ok = True
-                break
-            dialog_gone = page.evaluate("() => !document.querySelector('.ds-slide-dialog')")
-            if login_result:
-                log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] 登录响应: '
-                    f'{login_result.get("code")} {login_result.get("msg", "")[:40]}')
-            elif dialog_gone:
-                log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] 面板关闭但无登录响应，重试')
-            else:
-                log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] 验证失败，换一张')
+
+                login_result = {}
+
+                def on_response(resp):
+                    if 'ajax.php?act=login' in resp.url:
+                        try:
+                            login_result.update(resp.json())
+                        except Exception:
+                            pass
+                page.on('response', on_response)
+
+                page.click('input[type=submit]')
+                time.sleep(2.5)
+                handle = page.locator('.ds-slide-handle')
+                if handle.count() == 0:
+                    log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] 滑块未弹出')
+                    browser.close()
+                    time.sleep(1.5)
+                    continue
+
+                bg_src = page.evaluate("() => document.querySelector('.ds-slide-background')?.src")
+                pc_src = page.evaluate("() => document.querySelector('.ds-slide-piece')?.src")
+                top_pct = page.evaluate("() => parseFloat(document.querySelector('.ds-slide-piece').style.top)")
+                y_px = int(float(top_pct) / 100 * 160)
+                x = _ncc_x(bg_src, pc_src, y_px)
+                if x < 0:
+                    log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] NCC 定位失败')
+                    browser.close()
+                    time.sleep(1.5)
+                    continue
+
+                track = page.locator('.ds-slide-track')
+                _drag_human(page, handle, track, x)
+                time.sleep(3.5)
+
+                if login_result.get('code') == 0:
+                    login_ok = True
+                    last_cookies = {c['name']: c['value'] for c in ctx.cookies() if c.get('value')}
+                    browser.close()
+                    break
+
+                dialog_gone = page.evaluate("() => !document.querySelector('.ds-slide-dialog')")
+                if login_result:
+                    log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] 登录响应: '
+                        f'{login_result.get("code")} {login_result.get("msg", "")[:40]}')
+                elif dialog_gone:
+                    log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] 面板关闭但无登录响应，重试')
+                else:
+                    log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] 验证失败，换一张')
+            except Exception as e:
+                log(f'  [滑块 {attempt}/{MAX_SLIDE_RETRY}] 异常: {e}（重启浏览器重试）')
+            finally:
+                try:
+                    browser.close()
+                except Exception:
+                    pass
             time.sleep(1.5)
 
         if not login_result:
-            browser.close()
             return None, None, False
 
-        cookies = {c['name']: c['value'] for c in ctx.cookies() if c.get('value')}
-        browser.close()
         if not login_ok:
             log(f'  ✗ 登录失败: {login_result.get("msg", login_result)}')
             return None, login_result, False
-        log(f'  ✓ 登录成功（cookie {len(cookies)} 个）')
-        return cookies, login_result, False
+        log(f'  ✓ 登录成功（cookie {len(last_cookies or {})} 个）')
+        return last_cookies, login_result, False
 
 
 # ============================================================
