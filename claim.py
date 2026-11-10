@@ -215,11 +215,20 @@ def pw_login(user, pwd):
                 login_result = {}
 
                 def on_response(resp):
-                    if 'ajax.php?act=login' in resp.url:
+                    url = resp.url
+                    # 诊断：记录所有 ajax.php 和 ds_slide 响应（URL + 状态码 + body）
+                    if 'ajax.php' in url or 'ds_slide/api.php' in url:
+                        try:
+                            body = resp.text()
+                        except Exception:
+                            body = '<无法读取 body>'
+                        log(f'    [RESP] {url} status={resp.status}')
+                        log(f'           body={body[:200]!r}')
+                    if 'ajax.php?act=login' in url:
                         try:
                             login_result.update(resp.json())
                         except Exception:
-                            pass
+                            log(f'    [WARN] login 响应非 JSON: {body[:200]!r}')
                 page.on('response', on_response)
 
                 page.click('input[type=submit]')
