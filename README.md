@@ -167,17 +167,26 @@ priority: douyin                 # 每天先领这个平台；不填默认取第
 
 ## 🔑 六、环境变量（GitHub Actions Secrets / 本地环境）
 
-| 变量 | 必填 | 说明 |
-| --- | --- | --- |
-| `TA_USER` | ✅ | 站点登录账号 |
-| `TA_PASS` | ✅ | 站点登录密码 |
-| `TA_PRIORITY` | 否(按需) | 优先平台（`douyin` / `kuaishou` / `qq`），覆盖 config.yaml 的 `priority`；也支持 **`平台:商品tid`** 格式（如 `douyin:5564`）同时指定优先平台和商品；不填则用 config 或默认第一个平台 |
-| `TA_DOUYIN_INPUT` | 否(按需) | 抖音作品链接（如 `https://www.douyin.com/video/xxx`）；只填当前会领到的平台，全空则只签到 |
-| `TA_KUAISHOU_INPUT` | 否(按需) | 快手作品链接（如 `https://www.kuaishou.com/short-video/xxx`）；只填当前会领到的平台，全空则只签到 |
-| `TA_QQ_INPUT` | 否(按需) | QQ 号码（纯数字，如 `10001`）；只填当前会领到的平台，全空则只签到 |
-| `TELEGRAM_BOT_TOKEN` | 否(按需) | Telegram Bot Token（通知）；不配则只打印推送预览，不影响签到/领取 |
-| `TELEGRAM_CHAT_ID` | 否(按需) | Telegram 会话 ID（通知）；不配则只打印推送预览，不影响签到/领取 |
-| `TA_DRY_RUN` | 否(按需) | `1` = 只验证登录/滑块/领取链，**不真正提交领取** |
+<table>
+<thead>
+<tr>
+<th width="180">变量</th>
+<th width="90">必填</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><code>TA_USER</code></td><td>✅</td><td>站点登录账号</td></tr>
+<tr><td><code>TA_PASS</code></td><td>✅</td><td>站点登录密码</td></tr>
+<tr><td><code>TA_PRIORITY</code></td><td>否</td><td>优先平台（<code>douyin</code> / <code>kuaishou</code> / <code>qq</code>），覆盖 config.yaml 的 <code>priority</code>；也支持 **<code>平台:商品tid</code>** 格式（如 <code>douyin:5564</code>）同时指定优先平台和商品；不填则用 config 或默认第一个平台</td></tr>
+<tr><td><code>TA_DOUYIN_INPUT</code></td><td>否</td><td>抖音作品链接（如 <code>https://www.douyin.com/video/xxx</code>）；只填当前会领到的平台，全空则只签到</td></tr>
+<tr><td><code>TA_KUAISHOU_INPUT</code></td><td>否</td><td>快手作品链接（如 <code>https://www.kuaishou.com/short-video/xxx</code>）；只填当前会领到的平台，全空则只签到</td></tr>
+<tr><td><code>TA_QQ_INPUT</code></td><td>否</td><td>QQ 号码（纯数字，如 <code>10001</code>）；只填当前会领到的平台，全空则只签到</td></tr>
+<tr><td><code>TELEGRAM_BOT_TOKEN</code></td><td>否</td><td>Telegram Bot Token（通知）；不配则只打印推送预览，不影响签到/领取</td></tr>
+<tr><td><code>TELEGRAM_CHAT_ID</code></td><td>否</td><td>Telegram 会话 ID（通知）；不配则只打印推送预览，不影响签到/领取</td></tr>
+<tr><td><code>TA_DRY_RUN</code></td><td>否</td><td><code>1</code> = 只验证登录/滑块/领取链，**不真正提交领取**</td></tr>
+</tbody>
+</table>
 
 > **注意**：`TA_DOUYIN_INPUT` / `TA_KUAISHOU_INPUT` / `TA_QQ_INPUT` 只需填**当前会领到的平台**所需的那个（按 `priority` 和降级链）。未用到的平台输入可不填。
 > **若所有平台输入都为空**：领取步骤直接跳过，**只执行签到，不报错**（通知里显示「⏭️ 未配置平台输入，跳过」）。
