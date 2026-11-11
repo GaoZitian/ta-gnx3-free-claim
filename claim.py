@@ -60,8 +60,9 @@ CONFIG_FILE = os.path.join(SCRIPT_DIR, 'config.yaml')
 # 内置商品清单（免费福利区，13 个，全部互斥：每天全局只能成功领一个）
 # 注意：站点免费福利区还有其他免费商品（优惠券类等），本脚本不做考虑。
 # amount = 每日默认数量（来自站点商品页）；input_type 决定领取时要填什么
-# implemented=False 表示暂不实现（QQ 说说浏览量需通过 QQ 获取说说 id，难度高）
-# 当前 13 个中：12 个可正常领取，1 个（5186 说说浏览量）暂不实现。
+# implemented=False 表示暂不实现（QQ 说说浏览量需通过 QQ 手动选择说说，难度高；
+# 豪华代挂等级加速1天 领取后会有卡密，需跳转到 https://dg.gonm2.cn 手动激活，且每个QQ号仅可使用一次，纯体验使用，多次领取重复激活无效）
+# 当前 13 个中：11 个可正常领取，2 个（5186 说说浏览量、5700 豪华代挂）暂不实现。
 # ============================================================
 GOODS = {
     'douyin': [
@@ -78,7 +79,7 @@ GOODS = {
         {'tid': 5537, 'name': '作品分享1百-1万',  'amount': 100,  'input_type': 'link'},
     ],
     'qq': [
-        {'tid': 5700, 'name': '豪华代挂等级加速1天',  'amount': 0, 'input_type': 'qq'},
+        {'tid': 5700, 'name': '豪华代挂等级加速1天',  'amount': 0, 'input_type': 'qq', 'implemented': False},
         {'tid': 5542, 'name': '名片赞1百-10万随机',   'amount': 1, 'input_type': 'qq'},
         {'tid': 5379, 'name': '空间访客1百-10万随机', 'amount': 1, 'input_type': 'qq'},
         {'tid': 5186, 'name': '说说浏览量1百-100万随机', 'amount': 1, 'input_type': 'qq', 'implemented': False},
