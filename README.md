@@ -6,7 +6,7 @@
 > 
 > 站点「免费福利区」里其实有**很多**免费商品（除下方列出的外，还有大量优惠券类免费品，如滴滴/饿了么/肯德基/美团等）。
 > **本脚本只支持下方 `config.yaml` 里列出的商品**，其余免费商品一律**不做考虑、不实现、不涉及**。
-> 这不是「没做全」，而是按你的要求只针对这些作品/账号类的免费业务，优惠券类不在范围内。
+> 这不是「没做全」，而是只针对这些作品/账号类的免费业务，优惠券类不在范围内。
 > 其中 **QQ 说说浏览量（tid 5186）暂不实现**，其余 12 个均可正常领取。
 
 ---
@@ -28,20 +28,22 @@
 ---
 
 <a id="sec-1"></a>
+
 ## 📋 一、它做什么
 
 每天运行一次，按顺序执行：
 
 - ✅ **登录**（Playwright 真实浏览器过拼图滑块）
-  - 优先用**缓存的 cookie**（约 7 天有效），cookie 失效才走滑块 + 账号密码登录。
+    - 优先用**缓存的 cookie**（约 7 天有效），cookie 失效才走滑块 + 账号密码登录。
 - ✅ **签到**（领取每日签到积分）
 - ✅ **免费领取**（`ajax_shop.php?act=captcha` → `act=pay`，服务端直接返回缺口坐标，无需人工识别）
-  - **未配置对应平台输入（如 `TA_DOUYIN_INPUT` 为空）时，领取步骤直接跳过，只执行签到，不报错。**
-- ✅ **Telegram 通知**（领取结果、余额、今日收益）
+    - **未配置对应平台输入（如 `TA_DOUYIN_INPUT` 为空）时，领取步骤直接跳过，只执行签到，不报错。**
+- ✅ **Telegram 通知**（领取结果、余额、今日收益）——**可选**：没配 `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` 时只打印推送预览，不影响签到/领取
 
 ---
 
 <a id="sec-2"></a>
+
 ## 🔄 二、互斥规则（核心，站点强制）
 
 **站点规定：免费福利区的所有免费商品每天全局只能成功领取一个。** 领了其中一个，当天其余全部领不了。
@@ -57,11 +59,13 @@
 ---
 
 <a id="sec-3"></a>
+
 ## 🔀 三、领取顺序（降级规则）
 
 `priority`（优先入口）决定**每天先领哪个平台**；领取失败自动**降级到下一个已配置平台**（按 `platforms` 定义顺序），第一个成功的就停。
 
 **`priority` 来源（优先级从高到低）**：
+
 1. 环境变量 `TA_PRIORITY` ← **GitHub Actions 用 Repository variable 改，无需提交代码**
 2. `config.yaml` 的 `priority`
 3. 都不填则默认取第一个平台（`douyin`）
@@ -75,6 +79,7 @@
 ---
 
 <a id="sec-4"></a>
+
 ## 🎁 四、支持的免费商品清单（12 个可领取 + 1 个暂不实现）
 
 ### 抖音（`douyin`，需提供作品链接）
@@ -111,6 +116,7 @@
 ---
 
 <a id="sec-5"></a>
+
 ## ⚙️ 五、配置方法（`config.yaml`）
 
 ```yaml
@@ -145,24 +151,32 @@ priority: douyin                 # 每天先领这个平台；不填默认取第
 **改优先平台**：改 `priority`（`douyin` / `kuaishou` / `qq`），或**在 GitHub Actions 里设 `TA_PRIORITY` 变量**（免提交）。
 
 > 💡 **推荐**：优先平台用 `TA_PRIORITY` 环境变量控制（GitHub repo variable），比提交改 `config.yaml` 更灵活——想换平台时只需改 variable，不用重新推送。
+>
+> **`TA_PRIORITY` 支持两种格式**（一个变量同时搞定平台+商品）：
+>
+> - 纯平台：`TA_PRIORITY=douyin` → 只选优先平台，商品用 `config.yaml` 里该平台的 `tid`
+> - 平台:商品：`TA_PRIORITY=douyin:5564` → 同时指定优先平台**和**商品 tid（如 `douyin:5564` 领作品点赞、`qq:5542` 领名片赞），无需改 `config.yaml`
+>
+> 覆盖规则：`TA_PRIORITY` 里 `:` 后的商品 tid **只覆盖对应平台**，降级链里的其他平台仍用各自 `config.yaml` 的 `tid`。若指定了平台不存在的 tid 或非法 tid，脚本启动时报错并列出合法值。
 
 启动时脚本会校验：`tid` 必须在该平台 `items` 列表内，且在内置支持清单里，否则报错并列出合法值。**若选了标记 `status: 暂不实现` 的商品，脚本会直接提示该商品暂不实现。**
 
 ---
 
 <a id="sec-6"></a>
+
 ## 🔑 六、环境变量（GitHub Actions Secrets / 本地环境）
 
 | 变量 | 必填 | 说明 |
 | --- | --- | --- |
 | `TA_USER` | ✅ | 站点登录账号 |
 | `TA_PASS` | ✅ | 站点登录密码 |
-| `TA_PRIORITY` | 否 | 优先平台（`douyin` / `kuaishou` / `qq`），覆盖 config.yaml 的 `priority`；不填则用 config 或默认第一个平台 |
-| `TA_DOUYIN_INPUT` | 抖音商品 | 抖音作品链接（如 `https://www.douyin.com/video/xxx`） |
-| `TA_KUAISHOU_INPUT` | 快手商品 | 快手作品链接 |
-| `TA_QQ_INPUT` | QQ 商品 | QQ 号码 |
-| `TELEGRAM_BOT_TOKEN` | ✅ | Telegram Bot Token（通知） |
-| `TELEGRAM_CHAT_ID` | ✅ | Telegram 会话 ID（通知） |
+| `TA_PRIORITY` | 否 | 优先平台（`douyin` / `kuaishou` / `qq`），覆盖 config.yaml 的 `priority`；也支持 **`平台:商品tid`** 格式（如 `douyin:5564`）同时指定优先平台和商品；不填则用 config 或默认第一个平台 |
+| `TA_DOUYIN_INPUT` | 否（按需） | 抖音作品链接（如 `https://www.douyin.com/video/xxx`）；只填当前会领到的平台，全空则只签到 |
+| `TA_KUAISHOU_INPUT` | 否（按需） | 快手作品链接（如 `https://www.kuaishou.com/short-video/xxx`）；只填当前会领到的平台，全空则只签到 |
+| `TA_QQ_INPUT` | 否（按需） | QQ 号码（纯数字，如 `10001`）；只填当前会领到的平台，全空则只签到 |
+| `TELEGRAM_BOT_TOKEN` | 否 | Telegram Bot Token（通知）；不配则只打印推送预览，不影响签到/领取 |
+| `TELEGRAM_CHAT_ID` | 否 | Telegram 会话 ID（通知）；不配则只打印推送预览，不影响签到/领取 |
 | `TA_DRY_RUN` | 否 | `1` = 只验证登录/滑块/领取链，**不真正提交领取** |
 
 > **注意**：`TA_DOUYIN_INPUT` / `TA_KUAISHOU_INPUT` / `TA_QQ_INPUT` 只需填**当前会领到的平台**所需的那个（按 `priority` 和降级链）。未用到的平台输入可不填。
@@ -171,6 +185,7 @@ priority: douyin                 # 每天先领这个平台；不填默认取第
 ---
 
 <a id="sec-7"></a>
+
 ## 🚀 七、本地运行
 
 ```bash
@@ -193,15 +208,18 @@ python claim.py
 ---
 
 <a id="sec-8"></a>
+
 ## ⏰ 八、GitHub Actions 定时运行
 
-`.github/workflows/claim.yml`：cron `0 22 * * *`（UTC 22:00 = **北京时间次日 06:00**），每天一次。
+`.github/workflows/claim.yml`：cron `10 16 * * *`（UTC 16:10 = 北京时间 00:10），每天一次。
 
 **需配置仓库 Secrets**（Settings → Secrets and variables → Actions → New repository secret）：
 
-- `TA_USER`、`TA_PASS`
-- `TA_DOUYIN_INPUT` / `TA_KUAISHOU_INPUT` / `TA_QQ_INPUT`（按需）
-- `TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`
+- `TA_USER`、`TA_PASS`（✅ 必填）
+- `TA_DOUYIN_INPUT` / `TA_KUAISHOU_INPUT` / `TA_QQ_INPUT`（按需，只填当前会领到的平台；全空则只签到不领取）
+- `TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`（**可选**：不配则只打印推送预览，不影响签到/领取）
+
+> 💡 **想改领哪个商品**：设 `TA_PRIORITY` 变量（Settings → Variables）即可，支持 `douyin`（纯平台）或 `douyin:5564`（平台:商品）格式，无需改代码。若设了 `TA_PRIORITY`，则 Secrets 里的 `TA_DOUYIN_INPUT` 等需对应填新平台的输入。
 
 **cookie/状态缓存**：`.cache/cookies.json`（登录态，约 7 天）和 `.cache/state.json`（当天互斥状态）通过 `actions/cache` 跨运行保留。
 
@@ -214,6 +232,7 @@ python claim.py
 ---
 
 <a id="sec-9"></a>
+
 ## 🔬 九、技术要点（为什么能自动化）
 
 ### 1. 登录滑块（Playwright 真实浏览器）
@@ -225,7 +244,7 @@ python claim.py
 - **拟人拖动** `_drag_human`：ease-out 缓动（先快后慢）+ 随机微抖 + 随机步数（28~42 步），模拟真实鼠标轨迹。
 - **登录提交**：滑块通过后 `user-auth.js` 自动把 `ticket` 注入 `POST user/ajax.php?act=login`（`{user, pass, ds_slide_ticket}`）。**注意**：登录端点是 `user/ajax.php?act=login`（页面表单 action），不是站点其他登录入口。
 - **滑块失败重试**：最多 3 次，每次失败后**刷新页面**重置表单（滑块失败后 submit 按钮会被禁用 `busy`，必须刷新重填）。
-- **cookie 导出**：登录成功后导出浏览器全部 cookie，注入 requests session 继续签到/领取。
+- **cookie 导出**：登录成功后**等页面跳转完成再导出**浏览器全部 cookie，注入 requests session 继续签到/领取。（修复：此前 `json()` 读取成功就立即导出，页面未跳转完会缺 `sec_defend`/`user_token` 关键 cookie → 签到「校验失败」。现在等 URL 离开 `login.php` 再导出。）
 
 ### 2. 免费领取（`act=captcha` → `act=pay`）
 
@@ -254,11 +273,12 @@ POST act=pay  {tid, inputvalue, num, hashsalt, captcha_token, captcha_x, captcha
 
 ### 5. 签到
 
-`GET user/ajax_user.php?act=qiandao`。**登录接口会重置会话**，故登录后必须先走一遍 `login.php → user/ → user/qiandao.php` 预热页面再签到，否则返回「校验失败，请刷新页面重试」。
+`GET user/ajax_user.php?act=qiandao`。**登录接口会重置会话**，故登录后必须先走一遍 `login.php → user/ → user/qiandao.php` 预热页面再签到，否则返回「校验失败，请刷新页面重试」。（补充：签到「校验失败」的另一根因已修复——登录后 cookie 导出时机，见上「cookie 导出」条。warmup 预热 + 完整 cookie 两者齐备才能签到成功。）
 
 ---
 
 <a id="sec-10"></a>
+
 ## 📂 十、目录结构
 
 ```
@@ -276,6 +296,7 @@ ta-gnx3-free-claim/
 ---
 
 <a id="sec-11"></a>
+
 ## 🛡️ 十一、安全与边界
 
 - ✅ **凭证**：账号密码、作品链接、Telegram 均走环境变量 / Secrets，**不写进代码或提交**。

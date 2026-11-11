@@ -519,6 +519,34 @@ def load_config():
         log('✗ config.yaml 未配置 platforms')
         sys.exit(1)
 
+    order = list(platforms.keys())
+    # priority 来源：环境变量 TA_PRIORITY > config.yaml > 缺省第一个平台
+    # （GitHub Actions 用 Repository variable 覆盖，改平台无需提交代码）
+    # TA_PRIORITY 支持两种格式：
+    #   纯平台：   TA_PRIORITY=douyin            → 平台用 config.yaml 的 tid
+    #   平台:商品： TA_PRIORITY=douyin:5564      → 平台+商品 tid 一起指定（人性化：一个变量搞定）
+    prio_raw = (os.environ.get('TA_PRIORITY', '').strip().lower()
+                or str(cfg.get('priority') or '').lower() or order[0])
+    prio = prio_raw
+    if ':' in prio_raw:
+        prio_part, tid_part = prio_raw.split(':', 1)
+        prio = prio_part.strip()
+        tid_part = tid_part.strip()
+        if prio not in platforms:
+            log(f'✗ TA_PRIORITY={prio_raw} 的平台部分 "{prio}" 不在 platforms 中: {order}')
+            sys.exit(1)
+        if not tid_part.isdigit():
+            log(f'✗ TA_PRIORITY={prio_raw} 的商品部分 "{tid_part}" 不是有效数字 tid')
+            sys.exit(1)
+        # 覆盖该平台的 tid（商品自由选择，无需改 config.yaml）
+        _ov = int(tid_part)
+        _pconf = platforms[prio]
+        if isinstance(_pconf, dict):
+            _pconf['tid'] = _ov
+        else:
+            platforms[prio] = {'tid': _ov}
+        log(f'  ✓ TA_PRIORITY={prio_raw} → 平台 {prio} 商品 tid 覆盖为 {_ov}')
+
     # 校验：tid 必须在平台 items 内，且在内置 GOODS 中（防打错）
     for pname, pconf in platforms.items():
         if pname not in GOODS:
@@ -536,11 +564,6 @@ def load_config():
                 f'支持的 tid: {[g["tid"] for g in GOODS[pname]]}')
             sys.exit(1)
 
-    order = list(platforms.keys())
-    # priority 来源：环境变量 TA_PRIORITY > config.yaml > 缺省第一个平台
-    # （GitHub Actions 用 Repository variable 覆盖，改平台无需提交代码）
-    prio = (os.environ.get('TA_PRIORITY', '').strip().lower()
-            or cfg.get('priority') or order[0])
     if prio not in platforms:
         log(f'✗ priority={prio} 不在 platforms 中: {order}')
         sys.exit(1)
