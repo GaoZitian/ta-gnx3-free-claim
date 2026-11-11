@@ -1,6 +1,6 @@
 # 🌾 ta-gnx3 免费福利区自动领取
 
-针对 `https://ta.gnx3.cn`（PHP 刷赞刷粉平台）的**每日自动任务**，自动完成：**过滑块登录 → 每日签到 → 免费福利区领取一个免费商品 → Telegram 通知**。
+针对 `https://ta.gnx3.cn`（PHP 刷赞刷粉平台）的**每日自动任务**，自动完成：**过滑块登录 → 每日签到 → 免费福利区领取一个免费商品 → Telegram / wxpush 通知**。
 
 > ⚠️ **重要范围说明（务必先读）**
 > 
@@ -38,7 +38,7 @@
 - ✅ **签到**（领取每日签到积分）
 - ✅ **免费领取**（`ajax_shop.php?act=captcha` → `act=pay`，服务端直接返回缺口坐标，无需人工识别）
     - **未配置对应平台输入（如 `TA_DOUYIN_INPUT` 为空）时，领取步骤直接跳过，只执行签到，不报错。**
-- ✅ **Telegram 通知**（领取结果、余额、今日收益）——**可选**：没配 `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` 时只打印推送预览，不影响签到/领取
+- ✅ **Telegram / wxpush 通知**（领取结果、余额、今日收益）——**可选**：没配 `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`/`WXPUSH_URL`/`WXPUSH_TOKEN` 时只打印推送预览，不影响签到/领取
 
 ---
 
@@ -191,6 +191,11 @@ priority: douyin                 # 每天先领这个平台；不填默认取第
 <tr><td><code>TA_QQ_INPUT</code></td><td>否</td><td>QQ 号码（纯数字，如 <code>10001</code>）；只填当前会领到的平台，全空则只签到</td></tr>
 <tr><td><code>TELEGRAM_BOT_TOKEN</code></td><td>否</td><td>Telegram Bot Token（通知）；不配则只打印推送预览，不影响签到/领取</td></tr>
 <tr><td><code>TELEGRAM_CHAT_ID</code></td><td>否</td><td>Telegram 会话 ID（通知）；不配则只打印推送预览，不影响签到/领取</td></tr>
+<tr><td><code>WXPUSH_URL</code></td><td>否</td><td>wxpush 微信消息推送 Worker 基础地址（不含 <code>/wxsend</code>，代码自动拼接）；不配则只打印推送预览，不影响签到/领取。项目：<a href="https://github.com/frankiejun/wxpush">wxpush</a></td></tr>
+<tr><td><code>WXPUSH_TOKEN</code></td><td>否</td><td>部署 wxpush 时设置的 API_TOKEN（访问令牌）；需同时配置 <code>WXPUSH_URL</code>，否则不发送</td></tr>
+<tr><td><code>WXPUSH_USERID</code></td><td>否</td><td>可选：覆盖 wxpush 默认接收用户（多个 OpenID 用半角竖线 <code>|</code> 分隔，勿用全角 <code>｜</code>），示例：<code>OpenID1|OpenID2</code>；不配则用 wxpush 服务端的 <code>WX_USERID</code></td></tr>
+<tr><td><code>WXPUSH_TEMPLATE_ID</code></td><td>否</td><td>可选：覆盖 wxpush 默认模板 ID，示例：<code>模板ID</code>；不配则用 wxpush 服务端的 <code>WX_TEMPLATE_ID</code></td></tr>
+<tr><td><code>WXPUSH_BASE_URL</code></td><td>否</td><td>可选：点击模板消息后跳转的地址（如 <code>https://your-skin-page.com/skin</code>）；不配则跳 wxpush 服务的 <code>/skin</code> 详情页</td></tr>
 <tr><td><code>TA_DRY_RUN</code></td><td>否</td><td><code>1</code> = 只验证登录/滑块/领取链，**不真正提交领取**</td></tr>
 </tbody>
 </table>
@@ -213,6 +218,12 @@ export TA_PASS='你的密码'
 export TA_DOUYIN_INPUT='https://www.douyin.com/video/xxx'   # 或快手/QQ
 export TELEGRAM_BOT_TOKEN='xxx'
 export TELEGRAM_CHAT_ID='xxx'
+# wxpush 微信消息推送（可选，与 Telegram 独立；不配则只打印预览）
+export WXPUSH_URL='https://your-worker.workers.dev'   # 不含 /wxsend，代码自动拼接
+export WXPUSH_TOKEN='xxx'
+export WXPUSH_USERID='OpenID1|OpenID2'   # 可选：覆盖默认接收用户（半角 | 分隔，勿用全角）
+export WXPUSH_TEMPLATE_ID='模板ID'       # 可选：覆盖默认模板 ID
+export WXPUSH_BASE_URL='https://your-skin-page.com/skin'   # 可选：覆盖跳转地址
 
 # 首次先 dry-run，只验证登录 + 滑块 + 领取链，不真正提交
 TA_DRY_RUN=1 python claim.py
@@ -234,6 +245,8 @@ python claim.py
 - `TA_USER`、`TA_PASS`（✅ 必填）
 - `TA_DOUYIN_INPUT` / `TA_KUAISHOU_INPUT` / `TA_QQ_INPUT`（按需，只填当前会领到的平台；全空则只签到不领取）
 - `TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`（**可选**：不配则只打印推送预览，不影响签到/领取）
+- `WXPUSH_URL`、`WXPUSH_TOKEN`（**可选**：wxpush 微信消息推送；不配则只打印推送预览，不影响签到/领取。需同时配置才发送）
+- `WXPUSH_USERID`、`WXPUSH_TEMPLATE_ID`、`WXPUSH_BASE_URL`（**可选**：覆盖 wxpush 服务端的默认接收用户 / 模板 / 跳转页；不配则用服务端默认）
 
 > 💡 **想改领哪个商品**：设 `TA_PRIORITY` 变量（Settings → Variables）即可，支持 `douyin`（纯平台）或 `douyin:5564`（平台:商品）格式，无需改代码。若设了 `TA_PRIORITY`，则 Secrets 里的 `TA_DOUYIN_INPUT` 等需对应填新平台的输入。
 
@@ -315,7 +328,7 @@ ta-gnx3-free-claim/
 
 ## 🛡️ 十一、安全与边界
 
-- ✅ **凭证**：账号密码、作品链接、Telegram 均走环境变量 / Secrets，**不写进代码或提交**。
+- ✅ **凭证**：账号密码、作品链接、Telegram、wxpush 均走环境变量 / Secrets，**不写进代码或提交**。
 - ✅ **免费**：只领取 `price=0.00` 的免费商品，绝不触发任何付费操作（`act=pay` 只用于免费品）。
 - ✅ **互斥**：每天全局只领一个，靠本地状态 + 服务端互斥双保险。
 - ✅ **不重试付费**：`act=pay` 免费领取若返回错误不盲目重试（避免重复扣减，虽然免费品无扣款，仍保持克制）。

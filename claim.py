@@ -594,6 +594,44 @@ def tg_send(title, text):
 
 
 # ============================================================
+# wxpush 微信消息推送（与 Telegram 独立，可同时启用）
+# ============================================================
+def wxpush_send(title, text):
+    url = os.environ.get('WXPUSH_URL', '').strip().rstrip('/')
+    token = os.environ.get('WXPUSH_TOKEN', '').strip()
+    if not url or not token:
+        print(f'\n📣 推送预览（未配置 wxpush）\n【{title}】\n{text}\n')
+        return
+    try:
+        payload = {'token': token, 'title': title, 'content': text}
+        # 可选配置：非空时覆盖 wxpush 服务端默认（与 mimotion / epic-freebies-helper 一致）
+        userid = os.environ.get('WXPUSH_USERID', '').strip()
+        template_id = os.environ.get('WXPUSH_TEMPLATE_ID', '').strip()
+        base_url = os.environ.get('WXPUSH_BASE_URL', '').strip()
+        if userid:
+            payload['userid'] = userid
+        if template_id:
+            payload['template_id'] = template_id
+        if base_url:
+            payload['base_url'] = base_url
+        r = requests.get(
+            f'{url}/wxsend',
+            params=payload,
+            timeout=20)
+        # wxpush 成功：HTTP 200 且 msg 含 "Successfully sent"
+        ok = r.status_code == 200 and 'Successfully sent' in r.text
+        log('wxpush 推送:', '成功' if ok else f'失败 HTTP {r.status_code} {r.text[:200]}')
+    except Exception as e:
+        log('wxpush 推送异常:', e)
+
+
+def notify(title, text):
+    """统一通知入口：Telegram + wxpush 双通道（各自独立，未配置则只打印预览）"""
+    tg_send(title, text)
+    wxpush_send(title, text)
+
+
+# ============================================================
 # 登录（缓存 CK 优先，失效才走滑块+账密）
 # ============================================================
 def ensure_login(user, pwd):
@@ -712,7 +750,7 @@ def main():
     if state.get('date') == today_str():
         log(f'今天（{today_str()}）已处理过：'
             f'{state.get("platform")}/{state.get("name")} status={state.get("status")}')
-        tg_send('🌾 ta.gnx3.cn 自动任务',
+        notify('🌾 ta.gnx3.cn 自动任务',
                 f'⏭️ 今天已处理过（{state.get("name")}，{state.get("status")}），跳过。')
         sys.exit(0)
 
@@ -723,7 +761,7 @@ def main():
     if sess is None:
         err = (sign or {}).get('msg') or '滑块未通过或登录失败'
         lines.append(f'📝 签到/登录: ❌ {err}')
-        tg_send('🌾 ta.gnx3.cn 自动任务', '\n'.join(lines))
+        notify('🌾 ta.gnx3.cn 自动任务', '\n'.join(lines))
         sys.exit(2)
 
     sign_ok = bool(sign) and (sign.get('code') == 0 or '已签到' in (sign.get('msg') or ''))
@@ -783,7 +821,7 @@ def main():
     log('\n════════ 执行结果 ════════')
     for ln in lines:
         log(' ' + ln)
-    tg_send('🌾 ta.gnx3.cn 自动任务', '\n'.join(lines))
+    notify('🌾 ta.gnx3.cn 自动任务', '\n'.join(lines))
     sys.exit(0)
 
 
