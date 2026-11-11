@@ -171,13 +171,13 @@ priority: douyin                 # 每天先领这个平台；不填默认取第
 | --- | --- | --- |
 | `TA_USER` | ✅ | 站点登录账号 |
 | `TA_PASS` | ✅ | 站点登录密码 |
-| `TA_PRIORITY` | 否 | 优先平台（`douyin` / `kuaishou` / `qq`），覆盖 config.yaml 的 `priority`；也支持 **`平台:商品tid`** 格式（如 `douyin:5564`）同时指定优先平台和商品；不填则用 config 或默认第一个平台 |
-| `TA_DOUYIN_INPUT` | 否（按需） | 抖音作品链接（如 `https://www.douyin.com/video/xxx`）；只填当前会领到的平台，全空则只签到 |
-| `TA_KUAISHOU_INPUT` | 否（按需） | 快手作品链接（如 `https://www.kuaishou.com/short-video/xxx`）；只填当前会领到的平台，全空则只签到 |
-| `TA_QQ_INPUT` | 否（按需） | QQ 号码（纯数字，如 `10001`）；只填当前会领到的平台，全空则只签到 |
-| `TELEGRAM_BOT_TOKEN` | 否 | Telegram Bot Token（通知）；不配则只打印推送预览，不影响签到/领取 |
-| `TELEGRAM_CHAT_ID` | 否 | Telegram 会话 ID（通知）；不配则只打印推送预览，不影响签到/领取 |
-| `TA_DRY_RUN` | 否 | `1` = 只验证登录/滑块/领取链，**不真正提交领取** |
+| `TA_PRIORITY` | 否(按需) | 优先平台（`douyin` / `kuaishou` / `qq`），覆盖 config.yaml 的 `priority`；也支持 **`平台:商品tid`** 格式（如 `douyin:5564`）同时指定优先平台和商品；不填则用 config 或默认第一个平台 |
+| `TA_DOUYIN_INPUT` | 否(按需) | 抖音作品链接（如 `https://www.douyin.com/video/xxx`）；只填当前会领到的平台，全空则只签到 |
+| `TA_KUAISHOU_INPUT` | 否(按需) | 快手作品链接（如 `https://www.kuaishou.com/short-video/xxx`）；只填当前会领到的平台，全空则只签到 |
+| `TA_QQ_INPUT` | 否(按需) | QQ 号码（纯数字，如 `10001`）；只填当前会领到的平台，全空则只签到 |
+| `TELEGRAM_BOT_TOKEN` | 否(按需) | Telegram Bot Token（通知）；不配则只打印推送预览，不影响签到/领取 |
+| `TELEGRAM_CHAT_ID` | 否(按需) | Telegram 会话 ID（通知）；不配则只打印推送预览，不影响签到/领取 |
+| `TA_DRY_RUN` | 否(按需) | `1` = 只验证登录/滑块/领取链，**不真正提交领取** |
 
 > **注意**：`TA_DOUYIN_INPUT` / `TA_KUAISHOU_INPUT` / `TA_QQ_INPUT` 只需填**当前会领到的平台**所需的那个（按 `priority` 和降级链）。未用到的平台输入可不填。
 > **若所有平台输入都为空**：领取步骤直接跳过，**只执行签到，不报错**（通知里显示「⏭️ 未配置平台输入，跳过」）。
