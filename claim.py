@@ -279,7 +279,24 @@ def pw_login(user, pwd):
 
                 if login_result.get('code') == 0:
                     login_ok = True
+                    # [FIX] 登录成功后等页面跳转完成（location.assign('./') 离开 login.php），
+                    # 让 JS 写入的 sec_defend / user_token 等关键 cookie 先落盘，再导出。
+                    # 若 json() 读取成功但页面未跳转（Actions 竞态），立即导出会缺 cookie → 签到校验失败。
+                    # 本地走"页面跳转"兜底时页面已离开 login.php，此等待立即通过，不破坏成功路径。
+                    try:
+                        for _w in range(30):
+                            cur = page.url
+                            if 'login.php' not in cur:
+                                break
+                            # 或关键 cookie 已写入也可提前退出
+                            _ck = {c['name'] for c in ctx.cookies() if c.get('value')}
+                            if 'user_token' in _ck and 'sec_defend' in _ck:
+                                break
+                            page.wait_for_timeout(200)
+                    except Exception as _e:
+                        log(f'    [WARN] 等待登录后跳转/关键cookie失败(忽略): {_e}')
                     last_cookies = {c['name']: c['value'] for c in ctx.cookies() if c.get('value')}
+                    log(f'  [DIAG] 登录后导出 cookie keys: {sorted(last_cookies.keys())}')
                     browser.close()
                     break
 
@@ -587,6 +604,8 @@ def ensure_login(user, pwd):
     q = {}
     for attempt in range(1, 5):
         q = qiandao(sess)
+        # [DIAG] 打印签到接口完整返回，用于定位"校验失败"根因（不改变行为）
+        log(f'  [DIAG] 签到 attempt={attempt} 完整返回: {q}')
         if q.get('code') == 0 or '已签到' in (q.get('msg') or ''):
             break
         if '校验失败' in (q.get('msg') or '') and attempt < 4:
