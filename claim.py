@@ -657,7 +657,7 @@ def do_login(user, pwd):
     cookies, res, _ = pw_login(user, pwd)
     if not cookies or res is None:
         log('  登录失败:', json.dumps(res or {}, ensure_ascii=False)[:120])
-        return None, res or {}, False
+        return None, False
     # 把浏览器 cookie 注入 requests session
     for k, v in cookies.items():
         sess.cookies.set(k, v, domain='ta.gnx3.cn')
@@ -666,7 +666,7 @@ def do_login(user, pwd):
     save_json(COOKIE_FILE, {'cookies': cookie_dict_of(sess), 'saved_at': now()})
     log('  cookie 已缓存')
 
-    return sess, {}, False
+    return sess, False
 
 
 def do_signin(sess):
