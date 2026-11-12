@@ -2,7 +2,12 @@ name: ta-gnx3 free claim
 
 on:
   schedule:
-    - cron: '10 16 * * *'      # UTC 16:10 = 北京时间次日 00:10，每天一次（刚过午夜，新的一天）
+    # UTC 18:00 = 北京时间 02:00，每天一次。
+    # 选 02:00 而不是 00:10：GitHub Actions 的 schedule 常见延迟 6-10 小时
+    # （实测 6.1h/6.5h/9.6h），延迟只会往后推，02:00 起跑即使延迟 20h 仍
+    # 落在同一天（00:10 起跑延迟超 24h 就会跨日）。配合 claim.py 内显式
+    # UTC+8 的日期判定，无论正常还是延迟执行都只处理"当天"。
+    - cron: '0 18 * * *'
   workflow_dispatch:          # 手动触发（默认完整执行；想只做 dry-run 测试把 DRY_RUN_ON_DISPATCH 设为 1）
 
 jobs:
@@ -42,6 +47,9 @@ jobs:
 
       - name: Run
         env:
+          # runner 系统时区默认 UTC；这里显式设为北京时间，双保险。
+          # claim.py 内部也已用显式 UTC+8 计算"今天"，不依赖这个变量。
+          TZ: Asia/Shanghai
           TA_USER: ${{ secrets.TA_USER }}
           TA_PASS: ${{ secrets.TA_PASS }}
           TA_PRIORITY: ${{ secrets.TA_PRIORITY }}

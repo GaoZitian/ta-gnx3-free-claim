@@ -239,7 +239,9 @@ python claim.py
 
 ## ⏰ 八、GitHub Actions 定时运行
 
-`.github/workflows/claim.yml`：cron `10 16 * * *`（UTC 16:10 = 北京时间 00:10），每天一次。
+`.github/workflows/claim.yml`：cron `0 18 * * *`（UTC 18:00 = **北京时间 02:00**），每天一次。
+
+> **为什么是 02:00**：GitHub Actions 的 schedule 常见延迟 6-10 小时（实测 6.1h / 6.5h / 9.6h），且延迟只会往后推。选 02:00 起跑，即使延迟 20 小时仍落在同一天（选 00:10 的话延迟超 24h 就会跨日）。配合脚本内显式 UTC+8 的日期判定，**无论正常还是延迟执行都只处理"当天"**。
 
 **需配置仓库 Secrets**（Settings → Secrets and variables → Actions → New repository secret）：
 
@@ -306,6 +308,19 @@ POST act=pay  {tid, inputvalue, num, hashsalt, captcha_token, captcha_x, captcha
 `GET user/ajax_user.php?act=qiandao`。**登录接口会重置会话**，故登录后必须先走一遍 `login.php → user/ → user/qiandao.php` 预热页面再签到，否则返回「校验失败，请刷新页面重试」。（补充：签到「校验失败」的另一根因已修复——登录后 cookie 导出时机，见上「cookie 导出」条。warmup 预热 + 完整 cookie 两者齐备才能签到成功。）
 
 **签到独立于领取**（每天一次）：用 `state.json` 的 `sign_date` 判断当天是否已签到。`sign_date != 今天` 才签到，成功后写 `sign_date=今天`；**签到失败不写** `sign_date`（当天稍后重试/次日再试）。**签到失败不阻断领取**——签到失败仍继续领取（领取更关键）。
+
+### 6. 时区（"今天"一律按北京时间）
+
+**GitHub Actions runner 的系统时区是 UTC**，而站点 `ta.gnx3.cn` 按**北京时间**判"今天"（已实测：`/user/record.php` 明细里 00:09、19:38、21:19 的签到记录各自记为「您今天签到」）。
+
+若直接用 `datetime.now()`，北京 00:00-08:00 之间运行会把日期算成**前一天**，于是本地 `state.json` 误判「今天已完成」，**签到和领取被全部跳过（实际一个请求都没发）**。实测发生过：北京时间 11-13 06:13 的定时运行，脚本自认为还是 11-12，日志显示「⏭️ 今天已签到 / ⏭️ 今日已领取，无需重复」，实际当天两件事都没做。
+
+因此：
+
+- 脚本内所有"今天"判定走 `datetime.now(timezone(timedelta(hours=8)))`，**不依赖 runner 的 TZ 环境变量**；
+- workflow 里额外设 `TZ: Asia/Shanghai` 作双保险；
+- `state.json` 的 `date` / `sign_date` 全部存**北京日期**，与服务端口径一致；
+- 若发现距上次处理超过 2 天（说明中间几天被 GitHub schedule 延迟/丢弃吞掉），日志会告警「中间可能有几天漏跑」，**只执行当天、不补做往日**。
 
 ---
 

@@ -19,7 +19,7 @@ import time
 import random
 import base64
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 import requests
 import numpy as np
@@ -95,9 +95,32 @@ MUTEX_PAT = re.compile(r'已领|领取过|明日|明天|每天|今日已|上限|
 MAX_SLIDE_RETRY = 3              # 滑块最大重试（Playwright 命中率 ~100%，3 次足够）
 VERIFY_DURATION = (1500, 2500)  # verify duration 毫秒区间，<600 必挂
 
+# 距上次处理超过这么多天，就告警"中间可能有几天漏跑"（GitHub schedule 延迟/丢弃时用）
+SKIP_DAYS_THRESHOLD = 2
+
+
+# ============================================================
+# 时区（关键）
+#
+# GitHub Actions runner 的系统时区是 UTC，而站点 ta.gnx3.cn 按
+# 北京时间(UTC+8)判"今天"（已实测：record.php 明细里 00:09/19:38/21:19
+# 的签到记录各自记为"您今天签到"）。若直接用 datetime.now()，北京
+# 00:00-08:00 之间运行会把日期算成前一天，导致签到/领取被本地 state
+# 误判为"今天已完成"而全部跳过（实际不调接口）。
+#
+# 因此所有"今天"的判定一律走显式 UTC+8，不依赖 runner 的 TZ 环境变量。
+# ============================================================
+CST = timezone(timedelta(hours=8))
+
+
+def now_cst():
+    """当前北京时间（datetime 对象，带时区）"""
+    return datetime.now(CST)
+
 
 def now():
-    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    """当前北京时间字符串（与 today_str 同一时区口径）"""
+    return now_cst().strftime('%Y-%m-%d %H:%M:%S')
 
 
 def log(*a):
@@ -497,8 +520,23 @@ def save_json(path, obj):
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
 
+# ------------------------------------------------------------
+# 日期工具（时区定义见文件上方 CST / now_cst）
+# ------------------------------------------------------------
 def today_str():
-    return datetime.now().strftime('%Y-%m-%d')
+    """今天的北京日期 YYYY-MM-DD（与服务端口径一致）"""
+    return now_cst().strftime('%Y-%m-%d')
+
+
+def days_since(date_str):
+    """距某个 YYYY-MM-DD 过了多少天；date_str 非法时返回 None"""
+    if not date_str:
+        return None
+    try:
+        d = datetime.strptime(str(date_str)[:10], '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return None
+    return (now_cst().date() - d).days
 
 
 # ============================================================
@@ -767,6 +805,17 @@ def main():
 
     # ---- 签到（每天独立一次，用 sign_date 记录，不受领取互斥影响）----
     state = load_json(STATE_FILE) or {}
+
+    # ---- 日期连续性自检（防"延迟吞掉中间几天"导致的静默错日）----
+    # state 里的 date/sign_date 都是北京日期。若距今超过 SKIP_DAYS_THRESHOLD 天，
+    # 说明中间有几天因 GitHub schedule 延迟/丢弃没跑成——此时仍按"今天"执行
+    # （不补做过去的日子），但要明确告警，避免误以为每天都覆盖到了。
+    gap = days_since(state.get('date') or state.get('sign_date') or '')
+    if gap is not None and gap > SKIP_DAYS_THRESHOLD:
+        log(f'⚠️ 距上次处理已过 {gap} 天（> {SKIP_DAYS_THRESHOLD}），'
+            f'中间可能有几天未被执行；本次仍按今天（{today_str()}）执行，不补做往日')
+        lines.append(f'⚠️ 距上次处理已过 {gap} 天，中间可能有几天漏跑')
+
     sign_ok = False
     sign_state = ''
     if state.get('sign_date') != today_str():
