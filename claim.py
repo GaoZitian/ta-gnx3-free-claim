@@ -778,19 +778,21 @@ def main():
         lines.append(f'📝 签到: {"✅ " + sign_state if sign_ok else "⚠️ " + sign_state}')
     else:
         sign_state = '今天已签到'
-        lines.append(f'📝 签到: ✅ {sign_state}')
+        lines.append(f'📝 签到: ⏭️ {sign_state}')
 
     # ---- 领取互斥：state 已记录当天领取成功/已领过 → 不再领取 ----
+    # 注意：state 只在 status 为 success/already 时保存（见下方写状态），
+    # 所以这里 status 只可能是这两个值。
     if state.get('date') == today_str():
         pname = state.get('platform') or '?'
         gname = state.get('name') or '?'
         st = state.get('status') or '?'
-        at = state.get('saved_at') or ''
-        st_cn = {'success': '✅ 领取成功', 'already': '⏭️ 今日已领取过',
-                 'dryrun': '🧪 DRY-RUN'}.get(st, st)
         log(f'今天（{today_str()}）已处理过：'
             f'{pname}/{gname} status={st}')
-        lines.append(f'⏭️ 今日已领取过（{pname}·{gname}），无需重复领取。')
+        if st == 'success':
+            lines.append(f'✅ 领取成功：{pname}·{gname}')
+        else:  # already —— 今天已在别处（或其他方式）领取过，站点当天互斥
+            lines.append('⏭️ 今日已领取，无需重复')
         notify('🌾 ta.gnx3.cn 自动任务', '\n'.join(lines))
         sys.exit(0)
 
