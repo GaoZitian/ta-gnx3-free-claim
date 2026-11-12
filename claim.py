@@ -835,7 +835,7 @@ def main():
     # ---- 余额 ----
     p = profile(sess)
     if p.get('balance'):
-        extra = f'（今日收益 {p["today"]} 元）' if p.get('today') else ''
+        extra = f'（今日收益 {p["today"]} 元，仅商品领取，不含签到/红包赠送）' if p.get('today') else ''
         lines.append(f'💰 余额: {p["balance"]} 元{extra}')
 
     # ---- 写状态（成功/已领过才写，失败不写以便明天/下次重试）----

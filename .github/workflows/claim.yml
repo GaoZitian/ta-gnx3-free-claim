@@ -50,6 +50,11 @@ jobs:
           TA_QQ_INPUT: ${{ secrets.TA_QQ_INPUT }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WXPUSH_URL: ${{ secrets.WXPUSH_URL }}
+          WXPUSH_TOKEN: ${{ secrets.WXPUSH_TOKEN }}
+          WXPUSH_USERID: ${{ secrets.WXPUSH_USERID }}
+          WXPUSH_TEMPLATE_ID: ${{ secrets.WXPUSH_TEMPLATE_ID }}
+          WXPUSH_BASE_URL: ${{ secrets.WXPUSH_BASE_URL }}
           TA_DRY_RUN: ${{ vars.DRY_RUN_ON_DISPATCH }}
         run: python claim.py
 
