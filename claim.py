@@ -634,18 +634,22 @@ def notify(title, text):
 # ============================================================
 # 登录（缓存 CK 优先，失效才走滑块+账密）
 # ============================================================
-def ensure_login(user, pwd):
-    """返回 (sess, sign_json, from_cache)。会话保证已登录且已签到。"""
-    # 阶段 1：缓存 CK
+def do_login(user, pwd):
+    """只做登录（不签到）。返回 (sess, from_cache)。
+    登录验证：缓存 cookie 访问 /user/ 能取到余额=已登录；失效则 Playwright 滑块登录。"""
+    # 阶段 1：缓存 CK（访问 /user/ 判断登录态，不依赖签到）
     cached = load_json(COOKIE_FILE)
     if cached and cached.get('cookies'):
         sess = build_session(cached['cookies'])
         log('  [1/2] 尝试缓存 cookie…')
-        q = qiandao(sess)
-        if q.get('code') == 0 or '已签到' in (q.get('msg') or ''):
-            log(f'  ✓ 缓存有效，签到: {q.get("msg") or "已签到"}')
-            return sess, q, True
-        log(f'  缓存已失效（{q.get("msg") or q.get("code")}），走账密登录')
+        try:
+            r = sess.get(BASE + '/user/', headers={'Accept': 'text/html,application/xhtml+xml'})
+            if '余额' in r.text or '今日收益' in r.text:
+                log('  ✓ 缓存有效（已登录）')
+                return sess, True
+        except Exception as e:
+            log(f'  缓存验证异常: {e}')
+        log('  缓存已失效，走账密登录')
 
     # 阶段 2：账密登录（Playwright 真实浏览器滑块，命中率 ~100%）
     sess = build_session()
@@ -662,21 +666,26 @@ def ensure_login(user, pwd):
     save_json(COOKIE_FILE, {'cookies': cookie_dict_of(sess), 'saved_at': now()})
     log('  cookie 已缓存')
 
+    return sess, {}, False
+
+
+def do_signin(sess):
+    """签到（独立于登录验证）。返回 (sign_json, ok)。成功时调用方记 sign_date。"""
+    # 登录接口会重置会话，签到前必须先走一遍登录页/用户页/签到页（预热）
     warmup_after_login(sess)
     q = {}
     for attempt in range(1, 5):
         q = qiandao(sess)
-        # [DIAG] 打印签到接口完整返回，用于定位"校验失败"根因（不改变行为）
         log(f'  [DIAG] 签到 attempt={attempt} 完整返回: {q}')
         if q.get('code') == 0 or '已签到' in (q.get('msg') or ''):
-            break
+            return q, True
         if '校验失败' in (q.get('msg') or '') and attempt < 4:
             wait = attempt * 2
             log(f'  第 {attempt} 次签到返回校验失败，等 {wait}s 重试')
             time.sleep(wait)
             continue
         break
-    return sess, q, False
+    return q, False
 
 
 # ============================================================
@@ -746,27 +755,44 @@ def main():
     platforms, prio, chain = load_config()
     log('领取尝试链:', ' → '.join(chain), f'（priority={prio}）')
 
-    state = load_json(STATE_FILE) or {}
-    if state.get('date') == today_str():
-        log(f'今天（{today_str()}）已处理过：'
-            f'{state.get("platform")}/{state.get("name")} status={state.get("status")}')
-        notify('🌾 ta.gnx3.cn 自动任务',
-                f'⏭️ 今天已处理过（{state.get("name")}，{state.get("status")}），跳过。')
-        sys.exit(0)
-
     lines = []
 
-    # ---- 登录 + 签到 ----
-    sess, sign, from_cache = ensure_login(user, pwd)
+    # ---- 登录（方案 B：登录与签到解耦，签到每天独立一次）----
+    sess, from_cache = do_login(user, pwd)
     if sess is None:
-        err = (sign or {}).get('msg') or '滑块未通过或登录失败'
-        lines.append(f'📝 签到/登录: ❌ {err}')
+        err = '滑块未通过或登录失败'
+        lines.append(f'📝 登录: ❌ {err}')
         notify('🌾 ta.gnx3.cn 自动任务', '\n'.join(lines))
         sys.exit(2)
 
-    sign_ok = bool(sign) and (sign.get('code') == 0 or '已签到' in (sign.get('msg') or ''))
-    sign_state = (sign or {}).get('msg') or ('已签到' if from_cache else '未知')
-    lines.append(f'📝 签到: {"✅ " + sign_state if sign_ok else "⚠️ " + sign_state}')
+    # ---- 签到（每天独立一次，用 sign_date 记录，不受领取互斥影响）----
+    state = load_json(STATE_FILE) or {}
+    sign_ok = False
+    sign_state = ''
+    if state.get('sign_date') != today_str():
+        sign, sign_ok = do_signin(sess)
+        sign_state = (sign or {}).get('msg') or ('已签到' if from_cache else '未知')
+        if sign_ok:
+            state['sign_date'] = today_str()
+            save_json(STATE_FILE, state)
+        lines.append(f'📝 签到: {"✅ " + sign_state if sign_ok else "⚠️ " + sign_state}')
+    else:
+        sign_state = '今天已签到'
+        lines.append(f'📝 签到: ✅ {sign_state}')
+
+    # ---- 领取互斥：state 已记录当天领取成功/已领过 → 不再领取 ----
+    if state.get('date') == today_str():
+        pname = state.get('platform') or '?'
+        gname = state.get('name') or '?'
+        st = state.get('status') or '?'
+        at = state.get('saved_at') or ''
+        st_cn = {'success': '✅ 领取成功', 'already': '⏭️ 今日已领取过',
+                 'dryrun': '🧪 DRY-RUN'}.get(st, st)
+        log(f'今天（{today_str()}）已处理过：'
+            f'{pname}/{gname} status={st}')
+        lines.append(f'⏭️ 今日已领取过（{pname}·{gname}），无需重复领取。')
+        notify('🌾 ta.gnx3.cn 自动任务', '\n'.join(lines))
+        sys.exit(0)
 
     # ---- 领取（按尝试链降级）----
     # 若当前平台未配置输入（skip），跳过领取环节（只签到，不报错）
@@ -782,9 +808,14 @@ def main():
             break
         if status in ('success', 'already', 'dryrun'):
             claim_result = (platform, tid, g['name'], status, msg)
-            mark = {'success': '✅ 领取成功', 'already': '⏭️ 今日已领取过（服务端互斥）',
+            mark = {'success': '✅ 领取成功',
+                    'already': '⏭️ 今日已领取过',
                     'dryrun': '🧪 DRY-RUN'}[status]
-            claim_lines.append(f'🎁 领取: {mark} — {platform}·{g["name"]}（{msg}）')
+            # already（别处已领取）时不显示平台/商品，也不显示服务端 msg
+            if status == 'already':
+                claim_lines.append(f'🎁 领取: {mark}')
+            else:
+                claim_lines.append(f'🎁 领取: {mark} — {platform}·{g["name"]}（{msg}）')
             break
         claim_lines.append(f'⚠️ {platform}·{g["name"]} 失败: {msg}，降级下一平台')
         time.sleep(random.uniform(2, 4))
@@ -811,9 +842,12 @@ def main():
     if claim_result:
         platform, tid, name, status, msg = claim_result
         if status in ('success', 'already'):
+            # 保留签到记录 sign_date（方案 B：签到独立，不能被领取写覆盖）
+            cur = load_json(STATE_FILE) or {}
             save_json(STATE_FILE, {
                 'date': today_str(), 'platform': platform, 'tid': tid,
                 'name': name, 'status': status, 'saved_at': now(),
+                'sign_date': cur.get('sign_date', ''),
             })
         # 更新 cookie 缓存（领取过程会话可能有变化）
         save_json(COOKIE_FILE, {'cookies': cookie_dict_of(sess), 'saved_at': now()})

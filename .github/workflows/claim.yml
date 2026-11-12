@@ -44,7 +44,7 @@ jobs:
         env:
           TA_USER: ${{ secrets.TA_USER }}
           TA_PASS: ${{ secrets.TA_PASS }}
-          TA_PRIORITY: ${{ vars.TA_PRIORITY }}
+          TA_PRIORITY: ${{ secrets.TA_PRIORITY }}
           TA_DOUYIN_INPUT: ${{ secrets.TA_DOUYIN_INPUT }}
           TA_KUAISHOU_INPUT: ${{ secrets.TA_KUAISHOU_INPUT }}
           TA_QQ_INPUT: ${{ secrets.TA_QQ_INPUT }}

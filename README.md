@@ -35,7 +35,7 @@
 
 - ✅ **登录**（Playwright 真实浏览器过拼图滑块）
     - 优先用**缓存的 cookie**（约 7 天有效），cookie 失效才走滑块 + 账号密码登录。
-- ✅ **签到**（领取每日签到积分）
+- ✅ **签到**（领取每日签到积分）——**每天独立一次，不受领取互斥影响**（用 `sign_date` 记录，当天没签过才签，签到失败次日重试）
 - ✅ **免费领取**（`ajax_shop.php?act=captcha` → `act=pay`，服务端直接返回缺口坐标，无需人工识别）
     - **未配置对应平台输入（如 `TA_DOUYIN_INPUT` 为空）时，领取步骤直接跳过，只执行签到，不报错。**
 - ✅ **Telegram / wxpush 通知**（领取结果、余额、今日收益）——**可选**：没配 `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`/`WXPUSH_URL`/`WXPUSH_TOKEN` 时只打印推送预览，不影响签到/领取
@@ -50,11 +50,12 @@
 
 脚本实现 **双重互斥**：
 
-1. **本地状态文件** `.cache/state.json`：记录 `{date, platform, tid, name, status}`。
-    每天第一次运行，`date == 今天` 就直接跳过（防脚本重复领），跨天自然重置。
+1. **本地状态文件** `.cache/state.json`：记录 `{date, platform, tid, name, status, sign_date}`。
+    - `date == 今天` 表示**当天已领取成功/已领过**，直接跳过领取（防脚本重复领），跨天自然重置。
+    - `sign_date` 单独记录**签到**日期（与领取互斥无关）：`sign_date != 今天` 才签到，签到成功后写 `sign_date=今天`，**签到失败不写**（次日重试）。
 2. **服务端互斥兜底**：即使本地状态丢失，服务端也会拒绝当天第二个免费领取（返回「已领过」类错误），脚本收到后记录 `status: already` 并停止。
 
-**关键**：**每天最多只成功领取一个**，成功后就写状态，当天不再尝试任何其他商品。
+**关键**：**每天最多只成功领取一个**，成功后就写状态，当天不再尝试任何其他商品。**签到独立于领取**：当天没签到过就签到，即使已领取也会先补签到。
 
 ---
 
@@ -66,7 +67,7 @@
 
 **`priority` 来源（优先级从高到低）**：
 
-1. 环境变量 `TA_PRIORITY` ← **GitHub Actions 用 Repository variable 改，无需提交代码**
+1. 环境变量 `TA_PRIORITY` ← **GitHub Actions 用 Repository secret 改，无需提交代码**
 2. `config.yaml` 的 `priority`
 3. 都不填则默认取第一个平台（`douyin`）
 
@@ -155,9 +156,9 @@ priority: douyin                 # 每天先领这个平台；不填默认取第
 ```
 
 **改领什么**：只改对应平台的 `tid`（从上面的清单表格复制）。
-**改优先平台**：改 `priority`（`douyin` / `kuaishou` / `qq`），或**在 GitHub Actions 里设 `TA_PRIORITY` 变量**（免提交）。
+**改优先平台**：改 `priority`（`douyin` / `kuaishou` / `qq`），或**在 GitHub Actions 里设 `TA_PRIORITY` secret**（免提交）。
 
-> 💡 **推荐**：优先平台用 `TA_PRIORITY` 环境变量控制（GitHub repo variable），比提交改 `config.yaml` 更灵活——想换平台时只需改 variable，不用重新推送。
+> 💡 **推荐**：优先平台用 `TA_PRIORITY` 环境变量控制（GitHub repo **secret**），比提交改 `config.yaml` 更灵活——想换平台时只需改 secret，不用重新推送。
 >
 > **`TA_PRIORITY` 支持两种格式**（一个变量同时搞定平台+商品）：
 >
@@ -248,9 +249,9 @@ python claim.py
 - `WXPUSH_URL`、`WXPUSH_TOKEN`（**可选**：wxpush 微信消息推送；不配则只打印推送预览，不影响签到/领取。需同时配置才发送）
 - `WXPUSH_USERID`、`WXPUSH_TEMPLATE_ID`、`WXPUSH_BASE_URL`（**可选**：覆盖 wxpush 服务端的默认接收用户 / 模板 / 跳转页；不配则用服务端默认）
 
-> 💡 **想改领哪个商品**：设 `TA_PRIORITY` 变量（Settings → Variables）即可，支持 `douyin`（纯平台）或 `douyin:5564`（平台:商品）格式，无需改代码。若设了 `TA_PRIORITY`，则 Secrets 里的 `TA_DOUYIN_INPUT` 等需对应填新平台的输入。
+> 💡 **想改领哪个商品**：设 `TA_PRIORITY` secret（Settings → Secrets and variables → Actions → **Secrets** 标签）即可，支持 `douyin`（纯平台）或 `douyin:5564`（平台:商品）格式，无需改代码。若设了 `TA_PRIORITY`，则 Secrets 里的 `TA_DOUYIN_INPUT` 等需对应填新平台的输入。
 
-**cookie/状态缓存**：`.cache/cookies.json`（登录态，约 7 天）和 `.cache/state.json`（当天互斥状态）通过 `actions/cache` 跨运行保留。
+**cookie/状态缓存**：`.cache/cookies.json`（登录态，约 7 天）和 `.cache/state.json`（当天领取互斥状态 + `sign_date` 签到日期）通过 `actions/cache` 跨运行保留。
 
 - cookie 有效期内直接复用，**不用每次过滑块**；
 - cookie 过期（服务端 session 失效）自动重新滑块 + 账号密码登录。
@@ -298,11 +299,13 @@ POST act=pay  {tid, inputvalue, num, hashsalt, captcha_token, captcha_x, captcha
 ### 4. cookie 持久化
 
 登录成功后保存 `.cache/cookies.json`。`mysid` cookie 有效期约 7 天（服务端 `Max-Age=604800`），`sec_defend` 当天有效（每天重新 GET login.php 一次，不影响已登录的 mysid）。
-下次运行先用缓存 cookie 验证登录态（`qiandao` 返回 `code:0`=有效），无效才重新滑块登录。
+下次运行先用缓存 cookie 验证登录态（访问 `/user/` 能取到「余额」=有效），无效才重新滑块登录。签到独立判断（`sign_date != 今天` 才签到）。
 
 ### 5. 签到
 
 `GET user/ajax_user.php?act=qiandao`。**登录接口会重置会话**，故登录后必须先走一遍 `login.php → user/ → user/qiandao.php` 预热页面再签到，否则返回「校验失败，请刷新页面重试」。（补充：签到「校验失败」的另一根因已修复——登录后 cookie 导出时机，见上「cookie 导出」条。warmup 预热 + 完整 cookie 两者齐备才能签到成功。）
+
+**签到独立于领取**（每天一次）：用 `state.json` 的 `sign_date` 判断当天是否已签到。`sign_date != 今天` 才签到，成功后写 `sign_date=今天`；**签到失败不写** `sign_date`（当天稍后重试/次日再试）。**签到失败不阻断领取**——签到失败仍继续领取（领取更关键）。
 
 ---
 
