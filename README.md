@@ -13,23 +13,53 @@
 
 ## 📑 目录
 
-- [一、它做什么](#sec-1)
-- [二、互斥规则](#sec-2)
-- [三、领取顺序（降级规则）](#sec-3)
-- [四、支持的免费商品清单](#sec-4)
-- [五、配置方法](#sec-5)
-- [六、环境变量](#sec-6)
-- [七、本地运行](#sec-7)
-- [八、GitHub Actions 定时运行](#sec-8)
-- [九、技术要点](#sec-9)
-- [十、目录结构](#sec-10)
-- [十一、安全与边界](#sec-11)
+- [一、快速开始](#sec-1)
+- [二、它做什么](#sec-2)
+- [三、互斥规则](#sec-3)
+- [四、领取顺序（降级规则）](#sec-4)
+- [五、支持的免费商品清单](#sec-5)
+- [六、配置方法](#sec-6)
+- [七、环境变量](#sec-7)
+- [八、部署到 GitHub Actions（定时运行）](#sec-8)
+- [九、本地运行（调试）](#sec-9)
+- [十、技术要点](#sec-10)
+- [十一、目录结构](#sec-11)
+- [十二、安全与边界](#sec-12)
 
 ---
 
 <a id="sec-1"></a>
 
-## 📋 一、它做什么
+## 🚀 一、快速开始
+
+### 1. Fork 本仓库
+
+1. 进入仓库主页，点击右上角 **Fork**
+2. 进入你 Fork 后的仓库
+
+### 2. 配置仓库 Secrets
+
+打开 **Settings** → **Secrets and variables** → **Actions** → **New repository secret**，逐个添加：
+
+- `TA_USER`、`TA_PASS`（✅ 必填，站点登录账号密码）
+- `TA_DOUYIN_INPUT` / `TA_KUAISHOU_INPUT` / `TA_QQ_INPUT`（按需，只填当前会领到的平台；全空则只签到不领取）
+- `TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`（**可选**：不配则只打印推送预览，不影响签到/领取）
+- `WXPUSH_URL`、`WXPUSH_TOKEN`（**可选**：wxpush 微信消息推送；不配则只打印推送预览，不影响签到/领取）
+- `WXPUSH_USERID`、`WXPUSH_TEMPLATE_ID`、`WXPUSH_BASE_URL`（**可选**：覆盖 wxpush 服务端默认值；不配则用服务端默认）
+- `TA_PRIORITY`（**可选**：想改领哪个平台/商品时设，支持 `douyin` 或 `douyin:5564`，无需改代码）
+
+### 3. 启用
+
+1. 仓库 **Actions** 页签 → 左侧 `ta-gnx3 free claim` → **Run workflow** 可手动触发
+2. 默认每天自动运行（北京时间 02:00）
+
+> 想只做登录/滑块验证不真正领取：在仓库 Settings → **Variables** 里加 `DRY_RUN_ON_DISPATCH = 1`，再 Run workflow。
+
+---
+
+<a id="sec-2"></a>
+
+## 📋 二、它做什么
 
 每天运行一次，按顺序执行：
 
@@ -42,9 +72,9 @@
 
 ---
 
-<a id="sec-2"></a>
+<a id="sec-3"></a>
 
-## 🔄 二、互斥规则（核心，站点强制）
+## 🔄 三、互斥规则（核心，站点强制）
 
 **站点规定：免费福利区的所有免费商品每天全局只能成功领取一个。** 领了其中一个，当天其余全部领不了。
 
@@ -59,9 +89,9 @@
 
 ---
 
-<a id="sec-3"></a>
+<a id="sec-4"></a>
 
-## 🔀 三、领取顺序（降级规则）
+## 🔀 四、领取顺序（降级规则）
 
 `priority`（优先入口）决定**每天先领哪个平台**；领取失败自动**降级到下一个已配置平台**（按 `platforms` 定义顺序），第一个成功的就停。
 
@@ -79,9 +109,9 @@
 
 ---
 
-<a id="sec-4"></a>
+<a id="sec-5"></a>
 
-## 🎁 四、支持的免费商品清单（11 个可领取 + 2 个暂不实现）
+## 🎁 五、支持的免费商品清单（11 个可领取 + 2 个暂不实现）
 
 ### 抖音（`douyin`，需提供作品链接）
 
@@ -123,9 +153,9 @@
 
 ---
 
-<a id="sec-5"></a>
+<a id="sec-6"></a>
 
-## ⚙️ 五、配置方法（`config.yaml`）
+## ⚙️ 六、配置方法（`config.yaml`）
 
 ```yaml
 platforms:
@@ -171,9 +201,9 @@ priority: douyin                 # 每天先领这个平台；不填默认取第
 
 ---
 
-<a id="sec-6"></a>
+<a id="sec-7"></a>
 
-## 🔑 六、环境变量（GitHub Actions Secrets / 本地环境）
+## 🔑 七、环境变量（GitHub Actions Secrets / 本地环境）
 
 <table>
 <thead>
@@ -206,9 +236,33 @@ priority: douyin                 # 每天先领这个平台；不填默认取第
 
 ---
 
-<a id="sec-7"></a>
+<a id="sec-8"></a>
 
-## 🚀 七、本地运行
+## ⏰ 八、部署到 GitHub Actions（定时运行）
+
+### 1. Fork + 配置 Secrets
+
+同「一、快速开始」的 1、2 步：Fork 本仓库 → 在 Fork 后的仓库 Settings → Secrets and variables → Actions 里配置上述 Secrets。
+
+### 2. 定时运行
+
+`.github/workflows/claim.yml`：cron `0 18 * * *`（UTC 18:00 = **北京时间 02:00**），每天一次。
+
+> **为什么是 02:00**：GitHub Actions 的 schedule 常见延迟 6-10 小时（实测 6.1h / 6.5h / 9.6h），且延迟只会往后推。选 02:00 起跑，即使延迟 20 小时仍落在同一天（选 00:10 的话延迟超 24h 就会跨日）。配合脚本内显式 UTC+8 的日期判定，**无论正常还是延迟执行都只处理"当天"**。
+
+**cookie/状态缓存**：`.cache/cookies.json`（登录态，约 7 天）和 `.cache/state.json`（当天领取互斥状态 + `sign_date` 签到日期）通过 `actions/cache` 跨运行保留。
+
+- cookie 有效期内直接复用，**不用每次过滑块**；
+- cookie 过期（服务端 session 失效）自动重新滑块 + 账号密码登录。
+
+> **手动触发**：仓库 Actions → 左侧点 `ta-gnx3 free claim` → `Run workflow`。默认会完整执行（领取）。
+> 想只做登录/滑块验证不真正领取：在仓库 Settings → Variables 里加 `DRY_RUN_ON_DISPATCH = 1`，再 Run workflow。
+
+---
+
+<a id="sec-9"></a>
+
+## 💻 九、本地运行（调试）
 
 ```bash
 pip install -r requirements.txt   # requests + Pillow + PyYAML + numpy + playwright
@@ -233,39 +287,13 @@ TA_DRY_RUN=1 python claim.py
 python claim.py
 ```
 
----
-
-<a id="sec-8"></a>
-
-## ⏰ 八、GitHub Actions 定时运行
-
-`.github/workflows/claim.yml`：cron `0 18 * * *`（UTC 18:00 = **北京时间 02:00**），每天一次。
-
-> **为什么是 02:00**：GitHub Actions 的 schedule 常见延迟 6-10 小时（实测 6.1h / 6.5h / 9.6h），且延迟只会往后推。选 02:00 起跑，即使延迟 20 小时仍落在同一天（选 00:10 的话延迟超 24h 就会跨日）。配合脚本内显式 UTC+8 的日期判定，**无论正常还是延迟执行都只处理"当天"**。
-
-**需配置仓库 Secrets**（Settings → Secrets and variables → Actions → New repository secret）：
-
-- `TA_USER`、`TA_PASS`（✅ 必填）
-- `TA_DOUYIN_INPUT` / `TA_KUAISHOU_INPUT` / `TA_QQ_INPUT`（按需，只填当前会领到的平台；全空则只签到不领取）
-- `TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`（**可选**：不配则只打印推送预览，不影响签到/领取）
-- `WXPUSH_URL`、`WXPUSH_TOKEN`（**可选**：wxpush 微信消息推送；不配则只打印推送预览，不影响签到/领取。需同时配置才发送）
-- `WXPUSH_USERID`、`WXPUSH_TEMPLATE_ID`、`WXPUSH_BASE_URL`（**可选**：覆盖 wxpush 服务端的默认接收用户 / 模板 / 跳转页；不配则用服务端默认）
-
-> 💡 **想改领哪个商品**：设 `TA_PRIORITY` secret（Settings → Secrets and variables → Actions → **Secrets** 标签）即可，支持 `douyin`（纯平台）或 `douyin:5564`（平台:商品）格式，无需改代码。若设了 `TA_PRIORITY`，则 Secrets 里的 `TA_DOUYIN_INPUT` 等需对应填新平台的输入。
-
-**cookie/状态缓存**：`.cache/cookies.json`（登录态，约 7 天）和 `.cache/state.json`（当天领取互斥状态 + `sign_date` 签到日期）通过 `actions/cache` 跨运行保留。
-
-- cookie 有效期内直接复用，**不用每次过滑块**；
-- cookie 过期（服务端 session 失效）自动重新滑块 + 账号密码登录。
-
-> **手动测试**：仓库 Actions → 左侧点 `ta-gnx3 free claim` → `Run workflow`。默认会完整执行（领取）。
-> 想只做登录/滑块验证不真正领取：在仓库 Settings → Variables 里加 `DRY_RUN_ON_DISPATCH = 1`，再 Run workflow。
+> **本地运行只用于调试**（验证滑块/登录/领取链）。日常使用请走 GitHub Actions 定时任务（第八节）。
 
 ---
 
-<a id="sec-9"></a>
+<a id="sec-10"></a>
 
-## 🔬 九、技术要点（为什么能自动化）
+## 🔬 十、技术要点（为什么能自动化）
 
 ### 1. 登录滑块（Playwright 真实浏览器）
 
@@ -324,9 +352,9 @@ POST act=pay  {tid, inputvalue, num, hashsalt, captcha_token, captcha_x, captcha
 
 ---
 
-<a id="sec-10"></a>
+<a id="sec-11"></a>
 
-## 📂 十、目录结构
+## 📂 十一、目录结构
 
 ```
 ta-gnx3-free-claim/
@@ -342,12 +370,22 @@ ta-gnx3-free-claim/
 
 ---
 
-<a id="sec-11"></a>
+<a id="sec-12"></a>
 
-## 🛡️ 十一、安全与边界
+## 🛡️ 十二、安全与边界
 
 - ✅ **凭证**：账号密码、作品链接、Telegram、wxpush 均走环境变量 / Secrets，**不写进代码或提交**。
 - ✅ **免费**：只领取 `price=0.00` 的免费商品，绝不触发任何付费操作（`act=pay` 只用于免费品）。
 - ✅ **互斥**：每天全局只领一个，靠本地状态 + 服务端互斥双保险。
 - ✅ **不重试付费**：`act=pay` 免费领取若返回错误不盲目重试（避免重复扣减，虽然免费品无扣款，仍保持克制）。
 - ✅ **站点免费福利区范围外商品**：优惠券类等一律不做考虑（见顶部范围说明）。
+
+---
+
+**⭐ 喜欢这个项目？**
+
+如果这个项目对你有帮助，请点个 **Star** 支持一下！你的支持是持续维护的动力。
+
+## License
+
+[MIT](LICENSE) · 本项目仅供学习研究与测试使用，使用风险自担（完整免责声明见 [LICENSE](LICENSE)）

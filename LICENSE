@@ -1,0 +1,35 @@
+MIT License
+
+Copyright (c) 2026 GaoZitian
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+免责声明（Disclaimer）
+
+本项目仅供学习、研究与测试使用，请勿用于商业用途或任何违反平台规则的活动。
+
+- 仅限个人学习与测试：使用本项目造成的任何后果（包括但不限于账号被封禁、数据丢失、平台服务变更等）均由使用者自行承担，作者不承担任何责任。
+- 与官方无关联：本项目与 ta.gnx3.cn 站点及其运营方无任何关联、授权或合作关系。
+- 平台条款优先：请遵守目标站点、GitHub 及第三方服务的服务条款与当地法律法规；如与本项目规则冲突，以平台规则为准。
+- 不保证可用性：作者不对本项目的适用性、稳定性与持续可用性做任何保证，站点接口变更可能导致本项目失效。
+- 凭据安全：请妥善保管账号密码、Token 等敏感信息，因泄露造成的损失由使用者自行承担。
+
+以上声明与 MIT 许可证中的 "AS IS" 免责条款具有同等效力。
